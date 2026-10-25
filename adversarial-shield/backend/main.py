@@ -20,6 +20,7 @@ import io
 from typing import Literal
 
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 import adversarial_engine as ml
@@ -28,6 +29,13 @@ from metrics import compare_images
 from poison_engine import apply_adversarial_noise
 
 app = FastAPI(title="Adversarial Shield API", version="1.1.0")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?$",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 MAX_SIDE = 2048  # downscale huge photos so the demo stays fast
 
