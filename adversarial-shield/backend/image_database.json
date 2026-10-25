@@ -1,0 +1,38 @@
+[
+  {
+    "id": "d7e44a1010a0487790d0b0058ec02893",
+    "filename": "demo_reference_1.png",
+    "path": "d7e44a1010a0487790d0b0058ec02893_demo_reference_1.png",
+    "source": "demo",
+    "sha256": "59cebc45e867ba675efd3c435d14986a1eb36b771625c86e00f7f7561acec311",
+    "phash": "9e78656961666666",
+    "dhash": "b27169696969e8d4"
+  },
+  {
+    "id": "76af3cf4eb284a14a665e9eedef5b425",
+    "filename": "demo_reference_2.png",
+    "path": "76af3cf4eb284a14a665e9eedef5b425_demo_reference_2.png",
+    "source": "demo",
+    "sha256": "67356754daba8fb303f2c2ca6c923b4169a3e3fc0fd0fbd36b81acea2e405f40",
+    "phash": "c1956e6e1d691791",
+    "dhash": "83cccccacacccdc2"
+  },
+  {
+    "id": "2919d6ae085548b1bee662cca78a9e72",
+    "filename": "1.jpeg",
+    "path": "2919d6ae085548b1bee662cca78a9e72_1.jpeg",
+    "source": "user",
+    "sha256": "4438bee9781b648800efec2b4764f1e71309798a1f3fb0853426cb7ee09e3be7",
+    "phash": "d06107789f363c8f",
+    "dhash": "dad5929293b16464"
+  },
+  {
+    "id": "c1aa56e0911a403283390dc80bfb56c1",
+    "filename": "2.jpeg",
+    "path": "c1aa56e0911a403283390dc80bfb56c1_2.jpeg",
+    "source": "user",
+    "sha256": "ba192d4a8ce4f51cdc4186256f9d77317bce005b4d5f485ef5b5f713dbb56827",
+    "phash": "cee9f9038380a8fb",
+    "dhash": "333535e56c252565"
+  }
+]

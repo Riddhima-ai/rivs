@@ -14,11 +14,15 @@ import 'photo_selection_page.dart';
 class FootprintScanPage extends StatefulWidget {
   const FootprintScanPage({
     required this.hash,
+    required this.imageBytes,
+    required this.filename,
     required this.appState,
     super.key,
   });
 
   final String hash;
+  final List<int> imageBytes;
+  final String filename;
   final AppState appState;
 
   @override
@@ -30,6 +34,8 @@ class _FootprintScanPageState extends State<FootprintScanPage> {
   List<ThreatMatch>? _matches;
   String? _error;
   bool _isLoading = false;
+  int _candidateCount = 0;
+  Map<String, dynamic>? _fingerprints;
 
   @override
   void initState() {
@@ -52,11 +58,33 @@ class _FootprintScanPageState extends State<FootprintScanPage> {
       _error = null;
     });
     try {
-      final matches = await _api.scanHash(widget.hash);
+      final result = await _api.scanImage(
+        imageBytes: widget.imageBytes,
+        filename: widget.filename,
+      );
+      final rawMatches = result['matches'];
+      if (rawMatches is! List) {
+        throw const ApiException(
+          'The scan response is missing its matches list.',
+        );
+      }
+      final matches = rawMatches
+          .map((item) {
+            if (item is! Map<String, dynamic>) {
+              throw const FormatException('A scan result is malformed.');
+            }
+            return ThreatMatch.fromJson(item);
+          })
+          .toList(growable: false);
+      final rawQuery = result['query'];
       if (!mounted) return;
       widget.appState.recordMatches(matches.length);
       setState(() {
         _matches = matches;
+        _candidateCount = result['candidate_count'] is int
+            ? result['candidate_count'] as int
+            : 0;
+        _fingerprints = rawQuery is Map<String, dynamic> ? rawQuery : null;
       });
     } on ApiException catch (error) {
       if (mounted) {
@@ -105,7 +133,7 @@ class _FootprintScanPageState extends State<FootprintScanPage> {
                   children: [
                     const PageHeader(
                       title: 'Digital Footprint',
-                      subtitle: 'Search for similar image fingerprints.',
+                      subtitle: 'Compare against registered local images.',
                     ),
                     const SizedBox(height: 14),
                     GlassCard(
@@ -133,8 +161,15 @@ class _FootprintScanPageState extends State<FootprintScanPage> {
                     ),
                     const SizedBox(height: 11),
                     if (_matches != null) ...[
-                      _ScanSummary(count: _matches!.length),
+                      _ScanSummary(
+                        count: _matches!.length,
+                        candidates: _candidateCount,
+                      ),
                       const SizedBox(height: 11),
+                    ],
+                    if (_fingerprints != null) ...[
+                      const SizedBox(height: 10),
+                      _FingerprintDetails(values: _fingerprints!),
                     ],
                     if (_isLoading)
                       const _ScanningState()
@@ -151,7 +186,7 @@ class _FootprintScanPageState extends State<FootprintScanPage> {
                             icon: Icons.search_rounded,
                             title: 'No similar fingerprints found.',
                             message:
-                                'This image was not matched in the configured prototype database.',
+                                'No registered local image passed the perceptual similarity threshold.',
                             buttonLabel: 'Scan Again',
                             buttonIcon: Icons.refresh_rounded,
                             onPressed: _scan,
@@ -295,9 +330,10 @@ class _MatchesList extends StatelessWidget {
 }
 
 class _ScanSummary extends StatelessWidget {
-  const _ScanSummary({required this.count});
+  const _ScanSummary({required this.count, required this.candidates});
 
   final int count;
+  final int candidates;
 
   @override
   Widget build(BuildContext context) {
@@ -321,7 +357,7 @@ class _ScanSummary extends StatelessWidget {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  '$count potential ${count == 1 ? 'match' : 'matches'} in the prototype database.',
+                  '$count ${count == 1 ? 'match' : 'matches'} among $candidates registered images.',
                   style: const TextStyle(
                     color: AppTheme.secondaryText,
                     fontSize: 10,
@@ -342,6 +378,37 @@ class _ScanSummary extends StatelessWidget {
       ),
     );
   }
+}
+
+class _FingerprintDetails extends StatelessWidget {
+  const _FingerprintDetails({required this.values});
+  final Map<String, dynamic> values;
+
+  @override
+  Widget build(BuildContext context) => GlassCard(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Registered fingerprints',
+          style: TextStyle(fontWeight: FontWeight.w700),
+        ),
+        for (final key in ['sha256', 'phash', 'dhash'])
+          if (values[key] is String)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: SelectableText(
+                '$key: ${values[key]}',
+                style: const TextStyle(
+                  color: AppTheme.secondaryText,
+                  fontFamily: 'monospace',
+                  fontSize: 11,
+                ),
+              ),
+            ),
+      ],
+    ),
+  );
 }
 
 class _MeaningCard extends StatelessWidget {

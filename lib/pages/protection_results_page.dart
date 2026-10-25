@@ -94,6 +94,8 @@ class ProtectionResultsPage extends StatelessWidget {
                           MaterialPageRoute<void>(
                             builder: (_) => FootprintScanPage(
                               hash: hash,
+                              imageBytes: originalImage,
+                              filename: 'protected-photo.png',
                               appState: appState,
                             ),
                           ),

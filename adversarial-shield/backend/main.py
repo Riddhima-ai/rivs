@@ -10,12 +10,14 @@ Docs:
 
 Endpoints:
     POST /shield        shield an image (mode=noise|pgd, strength=1-16)
-    POST /scan          match a dHash against the mock threat DB
+    POST /protect       register an uploaded image in the local JSON registry
+    POST /scan          compare an upload against freshly computed local fingerprints
     POST /compare       PSNR/SSIM between an original and a shielded image
     POST /stress-test   run ResNet18 on original vs shielded variants (needs torch)
 """
 
 import base64
+import hashlib
 import io
 from typing import Literal
 
@@ -24,9 +26,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 import adversarial_engine as ml
-from hasher import DEFAULT_THRESHOLD, compute_dhash, find_matches, is_valid_hash
+from hasher import compute_dhash
 from metrics import compare_images
 from poison_engine import apply_adversarial_noise
+import image_registry
 
 app = FastAPI(title="Adversarial Shield API", version="1.1.0")
 app.add_middleware(
@@ -110,17 +113,43 @@ def shield(
     }
 
 
+@app.post("/protect")
+def protect(file: UploadFile = File(...)):
+    """Register an image and its SHA-256, pHash, and dHash locally."""
+    raw = file.file.read()
+    file.file.seek(0)
+    image = _read_image(file)
+    try:
+        saved = image_registry.save(
+            image, file.filename or "image.png",
+            sha256=hashlib.sha256(raw).hexdigest(),
+            raw_bytes=raw,
+        )
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"Could not save image locally: {exc}")
+    return {"id": saved["id"], "filename": saved["filename"],
+            "sha256": saved["sha256"], "phash": saved["phash"], "dhash": saved["dhash"],
+            "candidate_count": len(image_registry.entries())}
+
+
 @app.post("/scan")
 def scan(
-    dhash: str = Query(..., description="16-char hex dHash from /shield"),
-    threshold: int = Query(DEFAULT_THRESHOLD, ge=0, le=64),
+    file: UploadFile = File(...),
+    threshold: int = Query(8, ge=0, le=64, description="Maximum Hamming distance for both 64-bit perceptual hashes"),
 ):
-    """Match a dHash against the mock threat database."""
-    dhash = dhash.strip().lower()
-    if not is_valid_hash(dhash):
-        raise HTTPException(status_code=400, detail="dhash must be a 16-char hex string.")
-    threats = find_matches(dhash, threshold)
-    return {"query_hash": dhash, "threat_count": len(threats), "threats": threats}
+    """Compare an uploaded image against the local JSON fingerprint registry."""
+    raw = file.file.read()
+    file.file.seek(0)
+    image = _read_image(file)
+    return image_registry.scan(
+        image, threshold, query_sha256=hashlib.sha256(raw).hexdigest()
+    )
+
+
+@app.post("/seed-demo")
+def seed_demo():
+    """Development-only helper to populate the local image registry."""
+    return image_registry.seed_demo()
 
 
 @app.post("/compare")

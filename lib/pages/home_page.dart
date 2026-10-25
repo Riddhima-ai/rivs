@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../app_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_header.dart';
-import '../widgets/glass_card.dart';
 import '../widgets/gradient_button.dart';
 import '../widgets/shield_illustration.dart';
 import 'footprint_scan_page.dart';
@@ -20,107 +19,65 @@ class HomePage extends StatelessWidget {
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final padding = constraints.maxWidth > 600 ? 32.0 : 20.0;
-            return SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(padding, 14, padding, 24),
+            final desktop =
+                constraints.maxWidth >= 900 && constraints.maxHeight >= 650;
+            final horizontalPadding = switch (constraints.maxWidth) {
+              > 700 => 24.0,
+              _ => 16.0,
+            };
+
+            final compact = constraints.maxHeight < 650;
+            final illustrationHeight = desktop
+                ? (constraints.maxHeight * 0.2).clamp(140.0, 180.0).toDouble()
+                : compact
+                ? 95.0
+                : 130.0;
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                horizontalPadding,
+                desktop
+                    ? 12
+                    : compact
+                    ? 8
+                    : 10,
+                horizontalPadding,
+                desktop
+                    ? 12
+                    : compact
+                    ? 8
+                    : 12,
+              ),
               child: Center(
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 460),
+                  constraints: const BoxConstraints(maxWidth: 540),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisAlignment: desktop
+                        ? MainAxisAlignment.spaceBetween
+                        : MainAxisAlignment.start,
                     children: [
                       const AppHeader(),
-                      const SizedBox(height: 6),
-                      const ShieldIllustration(height: 84),
-                      const SizedBox(height: 2),
-                      GlassCard(
-                        padding: const EdgeInsets.fromLTRB(14, 10, 14, 16),
-                        gradient: const LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [AppTheme.blush, AppTheme.softBlush],
-                        ),
-                        borderColor: AppTheme.mauve.withValues(alpha: 0.55),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text.rich(
-                              const TextSpan(
-                                style: TextStyle(
-                                  fontFamily: 'Georgia',
-                                  fontSize: 21,
-                                  height: 1.13,
-                                  color: AppTheme.card,
-                                ),
-                                children: [
-                                  TextSpan(text: 'Take control of your\n'),
-                                  TextSpan(
-                                    text: 'online presence.',
-                                    style: TextStyle(color: AppTheme.mauve),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 9),
-                            const Text(
-                              'Apply experimental image protection and check for visually similar image fingerprints in a prototype database.',
-                              style: TextStyle(
-                                color: AppTheme.card,
-                                fontSize: 11,
-                                height: 1.4,
-                              ),
-                            ),
-                          ],
-                        ),
+                      SizedBox(height: compact ? 4 : 7),
+                      ShieldIllustration(
+                        height: illustrationHeight,
+                        maxWidth: desktop
+                            ? 144
+                            : compact
+                            ? 76
+                            : 104,
                       ),
-                      const SizedBox(height: 12),
-                      GradientButton(
-                        label: 'Protect My Photo',
-                        icon: Icons.photo_outlined,
-                        onPressed: () => _openPhoto(context),
+                      SizedBox(height: compact ? 2 : 4),
+                      _ActionsAndStats(
+                        appState: appState,
+                        onProtect: () => _openPhoto(context),
+                        onScan: () => _openScan(context),
+                        compact: compact,
                       ),
-                      const SizedBox(height: 8),
-                      GradientButton(
-                        label: 'Scan Digital Footprint',
-                        icon: Icons.search_rounded,
-                        secondary: true,
-                        onPressed: () => _openScan(context),
-                      ),
-                      const SizedBox(height: 14),
-                      AnimatedBuilder(
-                        animation: appState,
-                        builder: (context, _) => Row(
-                          children: [
-                            Expanded(
-                              child: _StatCard(
-                                icon: Icons.image_outlined,
-                                label: 'Photos Processed',
-                                value: appState.processedImages,
-                              ),
-                            ),
-                            const SizedBox(width: 9),
-                            Expanded(
-                              child: _StatCard(
-                                icon: Icons.track_changes_rounded,
-                                label: 'Potential Matches',
-                                value: appState.potentialMatches,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 15),
-                      const Text(
-                        'How it works',
-                        style: TextStyle(
-                          fontFamily: 'Georgia',
-                          fontSize: 17,
-                          color: AppTheme.primaryText,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
+                      SizedBox(height: compact ? 7 : 10),
+                      const _SectionHeading(title: 'How it works'),
+                      SizedBox(height: compact ? 5 : 7),
                       const _HowItWorks(),
-                      const SizedBox(height: 10),
+                      SizedBox(height: compact ? 6 : 8),
                       const _Disclaimer(),
                     ],
                   ),
@@ -143,7 +100,8 @@ class HomePage extends StatelessWidget {
 
   void _openScan(BuildContext context) {
     final hash = appState.latestHash;
-    if (hash == null) {
+    final imageBytes = appState.latestOriginalImage;
+    if (hash == null || imageBytes == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Choose and process a photo to create a fingerprint.'),
@@ -153,8 +111,77 @@ class HomePage extends StatelessWidget {
     }
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => FootprintScanPage(hash: hash, appState: appState),
+        builder: (_) => FootprintScanPage(
+          hash: hash,
+          imageBytes: imageBytes,
+          filename: 'protected-photo.png',
+          appState: appState,
+        ),
       ),
+    );
+  }
+}
+
+class _ActionsAndStats extends StatelessWidget {
+  const _ActionsAndStats({
+    required this.appState,
+    required this.onProtect,
+    required this.onScan,
+    required this.compact,
+  });
+
+  final AppState appState;
+  final VoidCallback onProtect;
+  final VoidCallback onScan;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text(
+          'YOUR PRIVACY TOOLKIT',
+          style: TextStyle(
+            color: AppTheme.mauve,
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.4,
+          ),
+        ),
+        SizedBox(height: compact ? 4 : 6),
+        GradientButton(
+          label: 'Protect My Photo',
+          icon: Icons.photo_outlined,
+          onPressed: onProtect,
+        ),
+        SizedBox(height: compact ? 4 : 6),
+        GradientButton(
+          label: 'Scan Digital Footprint',
+          icon: Icons.search_rounded,
+          secondary: true,
+          onPressed: onScan,
+        ),
+        SizedBox(height: compact ? 6 : 8),
+        AnimatedBuilder(
+          animation: appState,
+          builder: (context, _) => Column(
+            children: [
+              _StatCard(
+                icon: Icons.image_outlined,
+                label: 'Photos Processed',
+                value: appState.processedImages,
+              ),
+              const SizedBox(height: 5),
+              _StatCard(
+                icon: Icons.fingerprint_rounded,
+                label: 'Potential Matches',
+                value: appState.potentialMatches,
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -172,36 +199,66 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GlassCard(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    return Container(
+      constraints: const BoxConstraints(minHeight: 52),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppTheme.card,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.mauve.withValues(alpha: 0.22)),
+      ),
       child: Row(
         children: [
-          Icon(icon, color: AppTheme.pink, size: 19),
+          Icon(icon, color: AppTheme.mauve, size: 19),
           const SizedBox(width: 9),
           Expanded(
             child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   '$value',
                   style: const TextStyle(
+                    color: AppTheme.primaryText,
                     fontSize: 17,
+                    height: 1,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
+                const SizedBox(height: 4),
                 Text(
                   label,
-                  maxLines: 1,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: AppTheme.secondaryText,
                     fontSize: 9,
+                    height: 1.15,
                   ),
                 ),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _SectionHeading extends StatelessWidget {
+  const _SectionHeading({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      title,
+      style: const TextStyle(
+        fontFamily: 'Georgia',
+        color: AppTheme.primaryText,
+        fontSize: 18,
+        fontWeight: FontWeight.w500,
       ),
     );
   }
@@ -217,29 +274,42 @@ class _HowItWorks extends StatelessWidget {
       ('02', Icons.auto_awesome_outlined, 'Apply protection'),
       ('03', Icons.search_rounded, 'Scan fingerprints'),
     ];
+
     return Row(
       children: [
         for (var index = 0; index < steps.length; index++) ...[
           Expanded(
-            child: GlassCard(
-              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 9),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppTheme.secondaryBackground,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: AppTheme.mauve.withValues(alpha: 0.16),
+                ),
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    steps[index].$1,
-                    style: const TextStyle(
-                      color: AppTheme.pink,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  Row(
+                    children: [
+                      Text(
+                        steps[index].$1,
+                        style: const TextStyle(
+                          color: AppTheme.mauve,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                      Icon(steps[index].$2, color: AppTheme.mauve, size: 14),
+                    ],
                   ),
                   const SizedBox(height: 5),
-                  Icon(steps[index].$2, color: AppTheme.mauve, size: 17),
-                  const SizedBox(height: 4),
                   Text(
                     steps[index].$3,
                     maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: AppTheme.secondaryText,
                       fontSize: 9,
@@ -262,20 +332,24 @@ class _Disclaimer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GlassCard(
-      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
-      borderColor: AppTheme.mauve.withValues(alpha: 0.22),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppTheme.card.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.mauve.withValues(alpha: 0.16)),
+      ),
       child: const Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.info_outline_rounded, color: AppTheme.pink, size: 16),
+          Icon(Icons.info_outline_rounded, color: AppTheme.mauve, size: 16),
           SizedBox(width: 8),
           Expanded(
             child: Text(
               'Protection is experimental. Scan results use a prototype database and do not prove unauthorized image use.',
               style: TextStyle(
                 color: AppTheme.secondaryText,
-                fontSize: 9,
+                fontSize: 10,
                 height: 1.35,
               ),
             ),

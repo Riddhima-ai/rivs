@@ -104,6 +104,64 @@ class ApiService {
     }
   }
 
+  Future<Map<String, dynamic>> protectImage({
+    required List<int> imageBytes,
+    required String filename,
+  }) async => _uploadJson('/protect', imageBytes, filename);
+
+  Future<Map<String, dynamic>> scanImage({
+    required List<int> imageBytes,
+    required String filename,
+    int threshold = 8,
+  }) async {
+    if (threshold < 0 || threshold > 64) {
+      throw const ApiException(
+        'The perceptual threshold must be from 0 to 64.',
+      );
+    }
+    return _uploadJson(
+      '/scan',
+      imageBytes,
+      filename,
+      queryParameters: {'threshold': '$threshold'},
+    );
+  }
+
+  Future<Map<String, dynamic>> _uploadJson(
+    String path,
+    List<int> imageBytes,
+    String filename, {
+    Map<String, String>? queryParameters,
+  }) async {
+    if (imageBytes.isEmpty) {
+      throw const ApiException('Choose a non-empty image first.');
+    }
+    final request =
+        http.MultipartRequest(
+            'POST',
+            _endpoint(path, queryParameters: queryParameters),
+          )
+          ..files.add(
+            http.MultipartFile.fromBytes(
+              'file',
+              imageBytes,
+              filename: filename,
+              contentType: _mediaType(filename),
+            ),
+          );
+    try {
+      final streamed = await _client.send(request).timeout(_timeout);
+      final response = await http.Response.fromStream(
+        streamed,
+      ).timeout(_timeout);
+      return _decodeObject(response);
+    } on ApiException {
+      rethrow;
+    } on Exception catch (error) {
+      throw ApiException(_networkMessage(error));
+    }
+  }
+
   Uri _endpoint(String path, {Map<String, String>? queryParameters}) {
     final base = _baseUri;
     if ((base.scheme != 'http' && base.scheme != 'https') ||
